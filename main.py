@@ -59,3 +59,5 @@ if __name__ == "__main__":
             
     for html_file in tqdm(html_files):
         replace_static_links(html_file)
+
+    print("Готово!")
