@@ -9,65 +9,33 @@ def removing_dots_from_link(link):
     return link
 
 
-
 def replace_static_links(html_file_path):
-    # Шаблоны для поиска статических ссылок с исключением уже обработанных
-    patterns = {
-        'href': r'<link(?![^>]*url_for\([^)]*).*?href=[\'"](?!\{\{.*?\})(.*?\.css)[\'"].*?>',
-        'script': r'(<script(?![^>]*url_for\([^)]*).*?src=[\'"](?!\{\{.*?\})(.*?\.js)[\'"].*?>)',
-        'script_module': r'(<script(?![^>]*url_for\([^)]*).*?type=[\'"]module[\'"].*?src=[\'"](?!\{\{.*?\})(.*?\.js)[\'"].*?>)',
-        'img': r'<img(?![^>]*url_for\([^)]*).*?src=[\'"](?!\{\{.*?\})(.*?\.(?:png|jpg|jpeg|gif|svg))[\'"].*?>',
-        'static': r'(?<!url_for\()[\'"](?!\{\{.*?\})(/static/.*?)[\'"]'
-    }
-
+    # Шаблон
+    patterns = [r'src=([\'"])(.*?)\1', r'href=([\'"])(.*?)\1']
+    
     with open(html_file_path, 'r', encoding='utf-8') as file:
         content = file.read()
         
-
-    # Заменяем ссылки на CSS (исключаем уже обработанные)
-    content = re.sub(
-        patterns['href'],
-        lambda m: m.group(0) if 'url_for(' in m.group(0) else 
-        f'<link rel="stylesheet" href="{{{{ url_for(\'static\', filename=\'{removing_dots_from_link(m.group(1).lstrip("/static/"))}\') }}}}">',
-        content
-    )
-
-    # Заменяем модульные JS-скрипты (исключаем уже обработанные)
-    content = re.sub(
-        patterns['script_module'],
-        lambda m: m.group(0) if 'url_for(' in m.group(0) else
-        m.group(1).replace(
-            m.group(2),
-            f'{{{{ url_for(\'static\', filename=\'{removing_dots_from_link(m.group(2).lstrip("/static/"))}\') }}}}'
-        ),
-        content
-    )
-    
-    # Заменяем обычные JS-скрипты (исключаем уже обработанные)
-    content = re.sub(
-        patterns['script'],
-        lambda m: m.group(0) if 'url_for(' in m.group(0) else
-        f'<script src="{{{{ url_for(\'static\', filename=\'{removing_dots_from_link(m.group(2).lstrip("/static/"))}\') }}}}"></script>',
-        content
-    )
+    # Функция замены
+    def replacement(match):
+        quote = match.group(1)  # сохраняем тип кавычек
+        path = removing_dots_from_link(match.group(2))
+        # Если путь уже начинается с url_for, не изменяем его
+        
+        answers = {
+            r'src=([\'"])(.*?)\1' : f'src={quote}{{{{ url_for("static", filename="{removing_dots_from_link(path)}") }}}}{quote}',
+            r'href=([\'"])(.*?)\1' : f'href={quote}{{{{ url_for("static", filename="{removing_dots_from_link(path)}") }}}}{quote}',
+        }
+        if (path.startswith("{{ url_for(")) or (path.startswith(('http://', 'https://', 'htpp://'))):
+            return match.group(0)
+        return answers[pattern]
 
     
+    # Заменяем ссылки
+    for pattern in patterns:
+        content = re.sub(pattern, replacement, content)
 
-    # Заменяем ссылки на изображения (исключаем уже обработанные)
-    content = re.sub(
-        patterns['img'],
-        lambda m: m.group(0) if 'url_for(' in m.group(0) else
-        f'<img src="{{{{ url_for(\'static\', filename=\'{removing_dots_from_link(m.group(1).lstrip("/static/"))}\') }}}}">',
-        content
-    )
-
-    # Заменяем другие статические ссылки (исключаем уже обработанные)
-    content = re.sub(
-        patterns['static'],
-        lambda m: m.group(0) if 'url_for(' in m.group(0) else
-        f'{{{{ url_for(\'static\', filename=\'{removing_dots_from_link(m.group(1).lstrip("/static/"))}\') }}}}',
-        content
-    )
 
     with open(html_file_path, 'w', encoding='utf-8') as file:
         file.write(content)
+
